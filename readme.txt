@@ -1,6 +1,6 @@
 # Outline MCP Server
 
-A Model Context Protocol (MCP) server for Outline wiki (https://outline.clint.digital/).
+A Model Context Protocol (MCP) server for Outline wiki.
 Built with TypeScript, deployed via Docker MCP Gateway.
 
 ## Features
@@ -27,7 +27,9 @@ Built with TypeScript, deployed via Docker MCP Gateway.
 1. Install dependencies: npm install
 2. Build: npm run build
 3. Build Docker image: docker build -t outline-mcp-server .
-4. Set secret: docker mcp secret set OUTLINE_API_TOKEN="your-token"
+4. Set secrets:
+   - docker mcp secret set OUTLINE_API_TOKEN="your-token"
+   - docker mcp secret set OUTLINE_BASE_URL="https://your-outline-instance.com"
 5. Add entry to ~/.docker/mcp/catalogs/my-servers.yaml
 6. Add entry to ~/.docker/mcp/registry.yaml
 7. Verify: docker mcp server list | grep outline
@@ -44,10 +46,10 @@ With any AI tool connected to Docker MCP Gateway:
 
 ## Architecture
 
-AI Tool (Claude Code/Gemini/Codex) → Docker MCP Gateway → Outline MCP Server → https://outline.clint.digital/api
+AI Tool (Claude Code/Gemini/Codex) → Docker MCP Gateway → Outline MCP Server → Your Outline Instance API
                                               ↓
                                    Docker Desktop Secrets
-                                     (OUTLINE_API_TOKEN)
+                                (OUTLINE_API_TOKEN, OUTLINE_BASE_URL)
 
 ## License
 

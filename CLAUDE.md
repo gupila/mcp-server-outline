@@ -2,14 +2,14 @@
 
 ## Overview
 
-MCP server providing AI tools access to Outline wiki at https://outline.clint.digital/. TypeScript-based, runs in Docker container via Docker MCP Gateway.
+MCP server providing AI tools access to an Outline wiki instance. TypeScript-based, runs in Docker container via Docker MCP Gateway.
 
 ## Architecture
 
 - **Single file**: `src/index.ts` — all tools, API client, server setup
 - **API client**: `callOutlineAPI()` helper using native fetch with 15s timeout
 - **Auth**: Bearer token via `OUTLINE_API_TOKEN` Docker secret
-- **Base URL**: Hardcoded `https://outline.clint.digital`
+- **Base URL**: Configured via `OUTLINE_BASE_URL` Docker secret (e.g. `https://your-outline-instance.com`)
 
 ## Tools (10)
 

@@ -14,7 +14,7 @@ import {
 
 // Configuration
 const API_TOKEN = process.env.OUTLINE_API_TOKEN || "";
-const OUTLINE_BASE_URL = "https://outline.clint.digital";
+const OUTLINE_BASE_URL = process.env.OUTLINE_BASE_URL || "";
 
 // Logging configuration - log to stderr
 const logger = {
@@ -50,6 +50,9 @@ function formatDate(dateString: string | undefined | null): string {
 async function callOutlineAPI(endpoint: string, body: Record<string, unknown> = {}): Promise<unknown> {
   if (!API_TOKEN) {
     throw new Error("OUTLINE_API_TOKEN is not set. Configure it via Docker secrets.");
+  }
+  if (!OUTLINE_BASE_URL) {
+    throw new Error("OUTLINE_BASE_URL is not set. Configure it via Docker secrets.");
   }
 
   const response = await fetch(`${OUTLINE_BASE_URL}/api/${endpoint}`, {
@@ -751,6 +754,9 @@ async function main() {
 
   if (!API_TOKEN) {
     logger.warn("OUTLINE_API_TOKEN not set. Set it via Docker secrets.");
+  }
+  if (!OUTLINE_BASE_URL) {
+    logger.warn("OUTLINE_BASE_URL not set. Set it via Docker secrets.");
   }
 
   const transport = new StdioServerTransport();
