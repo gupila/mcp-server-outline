@@ -501,6 +501,7 @@ async function uploadAttachment(filePath: string, documentId: string): Promise<s
     formData.append("file", fileBlob, fileName);
     formData.append("name", fileName);
     formData.append("contentType", contentType);
+    formData.append("size", String(fileBuffer.length));
     if (documentId.trim()) {
       formData.append("documentId", documentId.trim());
     }
