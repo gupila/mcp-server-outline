@@ -495,55 +495,67 @@ async function uploadAttachment(filePath: string, documentId: string): Promise<s
     const fileName = path.basename(validPath);
     const contentType = getMimeType(validPath);
     const fileBuffer = fs.readFileSync(validPath);
-    const fileBlob = new Blob([fileBuffer], { type: contentType });
+    const fileSize = fileBuffer.length;
 
-    const formData = new FormData();
-    formData.append("file", fileBlob, fileName);
-    formData.append("name", fileName);
-    formData.append("contentType", contentType);
-    formData.append("size", String(fileBuffer.length));
+    logger.info(`File: ${fileName}, size: ${fileSize}, type: ${contentType}`);
+
+    const createParams: Record<string, unknown> = {
+      name: fileName,
+      size: fileSize,
+      contentType,
+    };
     if (documentId.trim()) {
-      formData.append("documentId", documentId.trim());
+      createParams.documentId = documentId.trim();
     }
 
-    const response = await fetch(`${OUTLINE_BASE_URL}/api/attachments.create`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${API_TOKEN}`,
-      },
-      body: formData,
-      signal: AbortSignal.timeout(120000),
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(`Outline API error ${response.status}: ${response.statusText}${text ? ` - ${text}` : ""}`);
-    }
-
-    const result = await response.json() as {
-      ok: boolean;
-      data: {
+    const createResult = await callOutlineAPI("attachments.create", createParams) as {
+      uploadUrl: string;
+      form: Record<string, string>;
+      attachment: {
         id: string;
         name: string;
         url: string;
         contentType: string;
         size: number;
+        documentId: string;
       };
-      error?: string;
+      maxUploadSize: number;
     };
 
-    if (!result.ok) {
-      throw new Error(`Outline error: ${result.error || "Unknown error"}`);
+    if (fileSize > createResult.maxUploadSize) {
+      throw new Error(`File too large: ${fileSize} bytes exceeds max ${createResult.maxUploadSize} bytes`);
     }
 
-    const attachment = result.data;
+    logger.info(`Presigned URL obtained, uploading file to: ${createResult.uploadUrl}`);
+
+    const uploadForm = new FormData();
+    for (const [key, value] of Object.entries(createResult.form)) {
+      uploadForm.append(key, value);
+    }
+    const fileBlob = new Blob([fileBuffer], { type: contentType });
+    uploadForm.append("file", fileBlob, fileName);
+
+    const uploadResponse = await fetch(createResult.uploadUrl, {
+      method: "POST",
+      body: uploadForm,
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!uploadResponse.ok) {
+      const text = await uploadResponse.text().catch(() => "");
+      throw new Error(`Upload error ${uploadResponse.status}: ${uploadResponse.statusText}${text ? ` - ${text.substring(0, 200)}` : ""}`);
+    }
+
+    logger.info(`File uploaded successfully: ${fileName}`);
+
+    const attachment = createResult.attachment;
     const redirectUrl = `${OUTLINE_BASE_URL}/api/attachments.redirect?id=${attachment.id}`;
 
     let output = `✅ Attachment uploaded:\n`;
     output += `Name: ${attachment.name}\n`;
     output += `ID: ${attachment.id}\n`;
-    output += `Type: ${attachment.contentType}\n`;
-    output += `Size: ${attachment.size} bytes\n`;
+    output += `Type: ${contentType}\n`;
+    output += `Size: ${fileSize} bytes\n`;
     output += `URL: ${attachment.url}\n`;
     output += `Redirect URL: ${redirectUrl}\n`;
     output += `Markdown: [${attachment.name}](${redirectUrl})`;
