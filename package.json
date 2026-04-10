@@ -1,7 +1,7 @@
 {
   "name": "outline-mcp-server",
-  "version": "1.0.0",
-  "description": "MCP server for Outline wiki - search, read, create, update, and manage documents and collections",
+  "version": "1.1.0",
+  "description": "MCP server for Outline wiki - search, read, create, update, manage documents/collections, and upload attachments",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

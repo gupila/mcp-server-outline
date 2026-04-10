@@ -18,6 +18,7 @@ Built with TypeScript, deployed via [Docker MCP Gateway](https://www.docker.com/
 | `get_collection` | Get collection details |
 | `list_documents` | List documents, optionally filtered by collection |
 | `get_collection_structure` | Get hierarchical document tree of a collection |
+| `upload_attachment` | Upload a file (image, video, PDF, etc.) and get an embeddable URL |
 
 ## Prerequisites
 
@@ -65,6 +66,7 @@ Add to `~/.docker/mcp/catalogs/my-servers.yaml`:
       - name: get_collection
       - name: list_documents
       - name: get_collection_structure
+      - name: upload_attachment
     secrets:
       - name: OUTLINE_API_TOKEN
         env: OUTLINE_API_TOKEN
@@ -96,6 +98,7 @@ Once connected, ask your AI tool naturally:
 - *"Read the API guidelines document"*
 - *"Create a new document called 'Sprint Retrospective' in the Engineering collection"*
 - *"Append the deployment steps to the runbook"*
+- *"Upload the test video to the L11 document"*
 
 ## Architecture
 
@@ -109,13 +112,13 @@ Docker MCP Gateway
 Outline MCP Server (this project)
         │
         ▼
-Outline REST API (/api/documents.*, /api/collections.*)
+Outline REST API (/api/documents.*, /api/collections.*, /api/attachments.*)
 ```
 
 - **Single-file TypeScript** server (`src/index.ts`)
 - **Native `fetch`** — no external HTTP dependencies
 - **Bearer token auth** via Docker secrets
-- **15s timeout** on all API calls
+- **15s timeout** on API calls (120s for file uploads)
 - **Non-root Docker container** for security
 
 ## Development

@@ -11,6 +11,8 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 // Configuration
 const API_TOKEN = process.env.OUTLINE_API_TOKEN || "";
@@ -444,12 +446,120 @@ async function getCollectionStructure(id: string): Promise<string> {
   }
 }
 
+// === FILE UPLOAD ===
+
+const MIME_TYPES: Record<string, string> = {
+  ".webm": "video/webm",
+  ".mp4": "video/mp4",
+  ".mov": "video/quicktime",
+  ".avi": "video/x-msvideo",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".pdf": "application/pdf",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".csv": "text/csv",
+  ".txt": "text/plain",
+  ".json": "application/json",
+  ".zip": "application/zip",
+};
+
+function getMimeType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  return MIME_TYPES[ext] || "application/octet-stream";
+}
+
+async function uploadAttachment(filePath: string, documentId: string): Promise<string> {
+  logger.info(`Uploading attachment: ${filePath}`);
+
+  try {
+    const validPath = validateRequired(filePath, "filePath");
+
+    if (!fs.existsSync(validPath)) {
+      throw new Error(`File not found: ${validPath}`);
+    }
+
+    if (!API_TOKEN) {
+      throw new Error("OUTLINE_API_TOKEN is not set. Configure it via Docker secrets.");
+    }
+    if (!OUTLINE_BASE_URL) {
+      throw new Error("OUTLINE_BASE_URL is not set. Configure it via Docker secrets.");
+    }
+
+    const fileName = path.basename(validPath);
+    const contentType = getMimeType(validPath);
+    const fileBuffer = fs.readFileSync(validPath);
+    const fileBlob = new Blob([fileBuffer], { type: contentType });
+
+    const formData = new FormData();
+    formData.append("file", fileBlob, fileName);
+    formData.append("name", fileName);
+    formData.append("contentType", contentType);
+    if (documentId.trim()) {
+      formData.append("documentId", documentId.trim());
+    }
+
+    const response = await fetch(`${OUTLINE_BASE_URL}/api/attachments.create`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_TOKEN}`,
+      },
+      body: formData,
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Outline API error ${response.status}: ${response.statusText}${text ? ` - ${text}` : ""}`);
+    }
+
+    const result = await response.json() as {
+      ok: boolean;
+      data: {
+        id: string;
+        name: string;
+        url: string;
+        contentType: string;
+        size: number;
+      };
+      error?: string;
+    };
+
+    if (!result.ok) {
+      throw new Error(`Outline error: ${result.error || "Unknown error"}`);
+    }
+
+    const attachment = result.data;
+    const redirectUrl = `${OUTLINE_BASE_URL}/api/attachments.redirect?id=${attachment.id}`;
+
+    let output = `✅ Attachment uploaded:\n`;
+    output += `Name: ${attachment.name}\n`;
+    output += `ID: ${attachment.id}\n`;
+    output += `Type: ${attachment.contentType}\n`;
+    output += `Size: ${attachment.size} bytes\n`;
+    output += `URL: ${attachment.url}\n`;
+    output += `Redirect URL: ${redirectUrl}\n`;
+    output += `Markdown: [${attachment.name}](${redirectUrl})`;
+
+    return output;
+  } catch (error) {
+    logger.error("Error in uploadAttachment:", error);
+    return formatError(error);
+  }
+}
+
 // === MCP SERVER SETUP ===
 
 const server = new Server(
   {
     name: "outline",
-    version: "1.0.0",
+    version: "1.1.0",
   },
   {
     capabilities: {
@@ -641,6 +751,24 @@ const TOOLS: Tool[] = [
       required: ["id"],
     },
   },
+  {
+    name: "upload_attachment",
+    description: "Upload a file as an attachment to Outline wiki. Returns the attachment URL for embedding in documents. Supports images, videos, PDFs, and other file types.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        filePath: {
+          type: "string",
+          description: "Absolute path to the file to upload (e.g., '/path/to/video.webm')",
+        },
+        documentId: {
+          type: "string",
+          description: "Optional document ID to associate the attachment with",
+        },
+      },
+      required: ["filePath"],
+    },
+  },
 ];
 
 // Handle tool listing
@@ -732,6 +860,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const id = (args?.id as string) || "";
         return {
           content: [{ type: "text", text: await getCollectionStructure(id) }],
+        };
+      }
+
+      case "upload_attachment": {
+        const filePath = (args?.filePath as string) || "";
+        const documentId = (args?.documentId as string) || "";
+        return {
+          content: [{ type: "text", text: await uploadAttachment(filePath, documentId) }],
         };
       }
 
